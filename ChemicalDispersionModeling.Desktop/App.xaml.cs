@@ -115,7 +115,7 @@ public partial class App : Application
         services.AddScoped<IWeatherService, WeatherService>();
         services.AddScoped<ITerrainService, TerrainService>();
         services.AddScoped<IRealMappingService, RealMappingService>();
-        services.AddScoped<IDispersionModelingService, DispersionModelingService>();
+        services.AddScoped<IDispersionModelingService, Core.Services.Implementation.DispersionModelingService>();
 
         // Real Data Services
         services.AddScoped<ILiveWeatherService, Core.Services.Implementation.LiveWeatherService>();

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ChemicalDispersionModeling.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8ee56e62cec46f196c48d47d1dd83686bce80e78")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+169a6538eb18bbf7d29fd019eb135ee53d11ad4c")]
 [assembly: System.Reflection.AssemblyProductAttribute("ChemicalDispersionModeling.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ChemicalDispersionModeling.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

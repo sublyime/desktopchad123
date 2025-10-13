@@ -768,6 +768,7 @@
       "ChemicalDispersionModeling.Core/1.0.0": {
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.0",
+          "Microsoft.Extensions.Logging": "8.0.0",
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
           "Newtonsoft.Json": "13.0.3",
           "System.ComponentModel.Annotations": "5.0.0",
@@ -775,7 +776,10 @@
           "System.Reactive": "6.0.0"
         },
         "runtime": {
-          "ChemicalDispersionModeling.Core.dll": {}
+          "ChemicalDispersionModeling.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
         }
       }
     }

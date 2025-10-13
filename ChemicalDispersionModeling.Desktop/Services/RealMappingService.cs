@@ -578,26 +578,28 @@ public partial class RealMappingService(ILogger<RealMappingService> logger) : IR
     }
 
     private static string GenerateOpenStreetMapHTML() =>
-        """<!DOCTYPE html>
-<html>
-<head>
-    <title>Chemical Dispersion Map</title>
-</head>
-<body>
-    <div id='map' style='height: 100%; width: 100%; background: lightblue;'>Map Placeholder</div>
-    <script>
-        console.log('Map initialized with plume visualization');
-        function AddDownwindCorridor(id, data) {
-            console.log('[JS DEBUG] addDownwindCorridor called with id:', id);
-            console.log('addDownwindCorridor is defined');
-            // Placeholder for corridor drawing
-        }
-        if (window.chrome && window.chrome.webview) {
-            window.chrome.webview.postMessage({ type: 'ready' });
-        }
-    </script>
-</body>
-</html>""";
+        """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Chemical Dispersion Map</title>
+        </head>
+        <body>
+            <div id='map' style='height: 100%; width: 100%; background: lightblue;'>Map Placeholder</div>
+            <script>
+                console.log('Map initialized with plume visualization');
+                function addDownwindCorridor(id, data) {
+                    console.log('[JS DEBUG] addDownwindCorridor called with id:', id);
+                    console.log('addDownwindCorridor is defined');
+                    // Placeholder for corridor drawing
+                }
+                if (window.chrome && window.chrome.webview) {
+                    window.chrome.webview.postMessage({ type: 'ready' });
+                }
+            </script>
+        </body>
+        </html>
+        """;
 
     private static string GenerateGoogleMapsHTML() => "";
 
@@ -612,11 +614,11 @@ public partial class RealMappingService(ILogger<RealMappingService> logger) : IR
         var centerLng = result.Longitude;
         var contour = new List<double[]>
         {
-            [centerLat + 0.01, centerLng - 0.01],
-            [centerLat + 0.01, centerLng + 0.01],
-            [centerLat - 0.01, centerLng + 0.01],
-            [centerLat - 0.01, centerLng - 0.01],
-            [centerLat + 0.01, centerLng - 0.01]
+            new[] { centerLat + 0.01, centerLng - 0.01 },
+            new[] { centerLat + 0.01, centerLng + 0.01 },
+            new[] { centerLat - 0.01, centerLng + 0.01 },
+            new[] { centerLat - 0.01, centerLng - 0.01 },
+            new[] { centerLat + 0.01, centerLng - 0.01 }
         };
         coordinates.Add(contour);
         return new

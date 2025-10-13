@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "/home/user/desktopchad123/ChemicalDispersionModeling.Core/ChemicalDispersionModeling.Core.csproj": {}
+    "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Core\\ChemicalDispersionModeling.Core.csproj": {}
   },
   "projects": {
-    "/home/user/desktopchad123/ChemicalDispersionModeling.Core/ChemicalDispersionModeling.Core.csproj": {
+    "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Core\\ChemicalDispersionModeling.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/user/desktopchad123/ChemicalDispersionModeling.Core/ChemicalDispersionModeling.Core.csproj",
+        "projectUniqueName": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Core\\ChemicalDispersionModeling.Core.csproj",
         "projectName": "ChemicalDispersionModeling.Core",
-        "projectPath": "/home/user/desktopchad123/ChemicalDispersionModeling.Core/ChemicalDispersionModeling.Core.csproj",
-        "packagesPath": "/home/user/.nuget/packages/",
-        "outputPath": "/home/user/desktopchad123/ChemicalDispersionModeling.Core/obj/",
+        "projectPath": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Core\\ChemicalDispersionModeling.Core.csproj",
+        "packagesPath": "C:\\Users\\pyres\\.nuget\\packages\\",
+        "outputPath": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/home/user/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\pyres\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
@@ -37,13 +37,18 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        }
+        },
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
             "Microsoft.Extensions.DependencyInjection.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging": {
               "target": "Package",
               "version": "[8.0.0, )"
             },
@@ -84,7 +89,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/nix/store/c67p00lksmyafxl5mhpx8zm67jwk95gr-dotnet-sdk-8.0.300/sdk/8.0.300/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

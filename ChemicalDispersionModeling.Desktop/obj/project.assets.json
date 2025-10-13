@@ -2759,6 +2759,7 @@
         "framework": ".NETCoreApp,Version=v8.0",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.0",
+          "Microsoft.Extensions.Logging": "8.0.0",
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
           "Newtonsoft.Json": "13.0.3",
           "System.ComponentModel.Annotations": "5.0.0",
@@ -6307,19 +6308,19 @@
     ]
   },
   "packageFolders": {
-    "/home/user/.nuget/packages/": {}
+    "C:\\Users\\pyres\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/user/desktopchad123/ChemicalDispersionModeling.Desktop/ChemicalDispersionModeling.Desktop.csproj",
+      "projectUniqueName": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Desktop\\ChemicalDispersionModeling.Desktop.csproj",
       "projectName": "ChemicalDispersionModeling.Desktop",
-      "projectPath": "/home/user/desktopchad123/ChemicalDispersionModeling.Desktop/ChemicalDispersionModeling.Desktop.csproj",
-      "packagesPath": "/home/user/.nuget/packages/",
-      "outputPath": "/home/user/desktopchad123/ChemicalDispersionModeling.Desktop/obj/",
+      "projectPath": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Desktop\\ChemicalDispersionModeling.Desktop.csproj",
+      "packagesPath": "C:\\Users\\pyres\\.nuget\\packages\\",
+      "outputPath": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Desktop\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/home/user/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\pyres\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net8.0-windows"
@@ -6331,11 +6332,11 @@
         "net8.0-windows7.0": {
           "targetAlias": "net8.0-windows",
           "projectReferences": {
-            "/home/user/desktopchad123/ChemicalDispersionModeling.Core/ChemicalDispersionModeling.Core.csproj": {
-              "projectPath": "/home/user/desktopchad123/ChemicalDispersionModeling.Core/ChemicalDispersionModeling.Core.csproj"
+            "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Core\\ChemicalDispersionModeling.Core.csproj": {
+              "projectPath": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Core\\ChemicalDispersionModeling.Core.csproj"
             },
-            "/home/user/desktopchad123/ChemicalDispersionModeling.Data/ChemicalDispersionModeling.Data.csproj": {
-              "projectPath": "/home/user/desktopchad123/ChemicalDispersionModeling.Data/ChemicalDispersionModeling.Data.csproj"
+            "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Data\\ChemicalDispersionModeling.Data.csproj": {
+              "projectPath": "C:\\vscode\\desktopchad123\\ChemicalDispersionModeling.Data\\ChemicalDispersionModeling.Data.csproj"
             }
           }
         }
@@ -6349,7 +6350,8 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      }
+      },
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net8.0-windows7.0": {
@@ -6435,12 +6437,6 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
-        "downloadDependencies": [
-          {
-            "name": "Microsoft.WindowsDesktop.App.Ref",
-            "version": "[8.0.5, 8.0.5]"
-          }
-        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
@@ -6449,7 +6445,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "/nix/store/c67p00lksmyafxl5mhpx8zm67jwk95gr-dotnet-sdk-8.0.300/sdk/8.0.300/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

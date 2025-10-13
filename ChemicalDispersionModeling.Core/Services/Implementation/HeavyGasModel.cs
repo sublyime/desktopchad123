@@ -176,9 +176,9 @@ public class HeavyGasModel(ILogger<HeavyGasModel> logger) : IDispersionModel
     private double CalculateEffectiveReleaseRate(Release release)
     {
         if (release.ReleaseRate.HasValue) return release.ReleaseRate.Value;
-        if (release.TotalMass.HasValue && release.EndTime.HasValue && release.StartTime.HasValue)
+        if (release.TotalMass.HasValue && release.EndTime.HasValue)
         {
-            var duration = (release.EndTime.Value - release.StartTime.Value).TotalSeconds;
+            var duration = (release.EndTime.Value - release.StartTime).TotalSeconds;
             return duration > 0 ? release.TotalMass.Value / duration : 0;
         }
         logger.LogWarning("Unable to determine release rate. Using a default of 0.1 kg/s.");

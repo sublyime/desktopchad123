@@ -759,17 +759,17 @@
           "runtimes/win-arm64/native/WebView2Loader.dll": {
             "rid": "win-arm64",
             "assetType": "native",
-            "fileVersion": "0.0.0.0"
+            "fileVersion": "1.0.3537.50"
           },
           "runtimes/win-x64/native/WebView2Loader.dll": {
             "rid": "win-x64",
             "assetType": "native",
-            "fileVersion": "0.0.0.0"
+            "fileVersion": "1.0.3537.50"
           },
           "runtimes/win-x86/native/WebView2Loader.dll": {
             "rid": "win-x86",
             "assetType": "native",
-            "fileVersion": "0.0.0.0"
+            "fileVersion": "1.0.3537.50"
           }
         }
       },
@@ -1049,16 +1049,7 @@
         }
       },
       "System.Diagnostics.DiagnosticSource/8.0.0": {},
-      "System.Diagnostics.EventLog/8.0.0": {
-        "runtimeTargets": {
-          "runtimes/win/lib/net8.0/System.Diagnostics.EventLog.Messages.dll": {
-            "rid": "win",
-            "assetType": "runtime",
-            "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.23.53103"
-          }
-        }
-      },
+      "System.Diagnostics.EventLog/8.0.0": {},
       "System.IO/4.3.0": {
         "dependencies": {
           "Microsoft.NETCore.Platforms": "1.1.0",
@@ -1180,6 +1171,7 @@
       "ChemicalDispersionModeling.Core/1.0.0": {
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.0",
+          "Microsoft.Extensions.Logging": "8.0.0",
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
           "Newtonsoft.Json": "13.0.3",
           "System.ComponentModel.Annotations": "5.0.0",
@@ -1187,7 +1179,10 @@
           "System.Reactive": "6.0.0"
         },
         "runtime": {
-          "ChemicalDispersionModeling.Core.dll": {}
+          "ChemicalDispersionModeling.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
         }
       },
       "ChemicalDispersionModeling.Data/1.0.0": {
@@ -1201,7 +1196,10 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": "8.0.0"
         },
         "runtime": {
-          "ChemicalDispersionModeling.Data.dll": {}
+          "ChemicalDispersionModeling.Data.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
         }
       },
       "Microsoft.Web.WebView2.Core/1.0.3537.50": {

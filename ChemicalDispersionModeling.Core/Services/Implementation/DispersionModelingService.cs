@@ -67,9 +67,9 @@ public partial class DispersionModelingService(
     {
         var concentration = await CalculateConcentrationAsync(x, y, z, release, chemical, weather);
         var duration = exposureTime.TotalSeconds;
-        if (release.ReleaseType == "Continuous" && release.StartTime.HasValue && release.EndTime.HasValue)
+        if (release.ReleaseType == "Continuous" && release.EndTime.HasValue)
         {
-            var releaseDuration = (release.EndTime.Value - release.StartTime.Value).TotalSeconds;
+            var releaseDuration = (release.EndTime.Value - release.StartTime).TotalSeconds;
             duration = Math.Min(duration, releaseDuration);
         }
 
@@ -124,9 +124,9 @@ public partial class DispersionModelingService(
     public double CalculateEffectiveReleaseRate(Release release, Chemical chemical, WeatherData weather)
     {
         if (release.ReleaseRate.HasValue) return release.ReleaseRate.Value;
-        if (release.TotalMass.HasValue && release.EndTime.HasValue && release.StartTime.HasValue)
+        if (release.TotalMass.HasValue && release.EndTime.HasValue)
         {
-            var duration = (release.EndTime.Value - release.StartTime.Value).TotalSeconds;
+            var duration = (release.EndTime.Value - release.StartTime).TotalSeconds;
             return duration > 0 ? release.TotalMass.Value / duration : 0;
         }
         return 0.1; // Default small release

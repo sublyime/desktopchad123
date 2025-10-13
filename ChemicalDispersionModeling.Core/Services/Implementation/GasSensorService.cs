@@ -17,12 +17,19 @@ using Microsoft.Extensions.Logging;
 
 namespace ChemicalDispersionModeling.Core.Services.Implementation;
 
-public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILogger<GasSensorService> logger)
-    : IGasSensorService, IDisposable
+public partial class GasSensorService : IGasSensorService, IDisposable
 {
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<GasSensorService> _logger;
     private readonly List<DataSourceConfiguration> _activeConfigurations = [];
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly char[] _csvSeparators = ['\n', '\r'];
+
+    public GasSensorService(HttpClient httpClient, ILogger<GasSensorService> logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+    }
 
     private Timer? _monitoringTimer;
     private bool _isDisposed;
@@ -31,27 +38,27 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
 
     public async Task<IEnumerable<GasSensorReading>> GetOSIPIDataAsync(string serverUrl, string[] tagNames)
     {
-        LogFetchingOSIPIData(serverUrl);
-        var httpClient = httpClientFactory.CreateClient("OSIPI");
+        _logger.LogInformation("Fetching OSI PI data from {serverUrl}", serverUrl);
+        var client = _httpClient;
 
         var tasks = tagNames.Select(async tagName =>
         {
             var url = $"{serverUrl}/piwebapi/points?path=\\\\{tagName}&webid";
             try
             {
-                var response = await httpClient.GetAsync(url);
+                var response = await client.GetAsync(url);
                 response.EnsureSuccessStatusCode();
                 var json = await response.Content.ReadAsStringAsync();
                 return ParseOSIPIData(json, tagName);
             }
             catch (HttpRequestException ex)
             {
-                LogOSIPIDataError(ex, tagName);
+                _logger.LogError(ex, "Error fetching OSI PI data for tag {tagName}", tagName);
                 return null;
             }
             catch (JsonException ex)
             {
-                LogJsonParsingError(ex, "OSIPI Data");
+                _logger.LogError(ex, "Error parsing JSON data: {jsonData}", "OSIPI Data");
                 return null;
             }
         });
@@ -62,7 +69,7 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
 
     public Task<IEnumerable<GasSensorReading>> GetOPCUADataAsync(string endpointUrl, string[] nodeIds)
     {
-        LogFetchingOPCUAData(endpointUrl);
+        _logger.LogInformation("Fetching OPC UA data from {endpointUrl}", endpointUrl);
         var readings = nodeIds.Select(nodeId => new GasSensorReading
         {
             Timestamp = DateTime.UtcNow,
@@ -78,12 +85,12 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
 
     public async Task<IEnumerable<GasSensorReading>> GetModbusDataAsync(string connectionString, int[] registerAddresses)
     {
-        LogFetchingModbusData(connectionString);
+        _logger.LogInformation("Fetching Modbus data: {connectionString}", connectionString);
         var parts = connectionString.Split(':');
         if (parts.Length < 3 || !IPAddress.TryParse(parts[0], out var ipAddress) || !int.TryParse(parts[1], out var port) || !byte.TryParse(parts[2], out var slaveId))
         {
-            logger.LogError("Invalid Modbus connection string: {ConnectionString}", connectionString);
-            return [];
+            _logger.LogError("Invalid Modbus connection string: {ConnectionString}", connectionString);
+            return Array.Empty<GasSensorReading>();
         }
 
         using var tcpClient = new TcpClient();
@@ -119,7 +126,7 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
 
     public async Task<IEnumerable<GasSensorReading>> GetSerialDataAsync(string portName, int baudRate, string protocol)
     {
-        LogFetchingSerialData(portName, baudRate, protocol);
+        _logger.LogInformation("Fetching serial data from {portName} at {baudRate} baud using {protocol}", portName, baudRate, protocol);
         try
         {
             using var serialPort = new SerialPort(portName, baudRate);
@@ -131,18 +138,18 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
             await Task.Delay(200); // Give the device time to respond
             var response = await Task.Run(serialPort.ReadLine);
 
-            return [ParseNMEAGasData(response) ?? ParseGenericSerialData(response, portName)].Where(r => r != null)!;
+            return new[] { ParseNMEAGasData(response) ?? ParseGenericSerialData(response, portName) }.Where(r => r != null)!;
         }
         catch (IOException ex)
         {
-            logger.LogError(ex, "Error communicating with serial port {PortName}", portName);
-            return [];
+            _logger.LogError(ex, "Error communicating with serial port {PortName}", portName);
+            return Array.Empty<GasSensorReading>();
         }
     }
 
     public Task<IEnumerable<GasSensorReading>> GetNetworkDataAsync(string host, int port, NetworkProtocol protocol)
     {
-        LogFetchingNetworkData(protocol, host, port);
+        _logger.LogInformation("Fetching network data using {protocol} from {host}:{port}", protocol, host, port);
         return protocol switch
         {
             NetworkProtocol.TCP => GetTcpGasDataAsync(host, port),
@@ -153,11 +160,11 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
 
     public async Task<IEnumerable<GasSensorReading>> GetFileDataAsync(string filePath, FileFormat format)
     {
-        LogReadingFileData(filePath, format);
+        _logger.LogInformation("Reading gas sensor data from file {filePath} with format {format}", filePath, format);
         if (!File.Exists(filePath))
         {
-            logger.LogWarning("File not found: {FilePath}", filePath);
-            return [];
+            _logger.LogWarning("File not found: {FilePath}", filePath);
+            return Array.Empty<GasSensorReading>();
         }
 
         try
@@ -173,8 +180,8 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
         }
         catch (IOException ex)
         {
-            logger.LogError(ex, "Error reading file {FilePath}", filePath);
-            return [];
+            _logger.LogError(ex, "Error reading file {FilePath}", filePath);
+            return Array.Empty<GasSensorReading>();
         }
     }
 
@@ -185,7 +192,7 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
             StopContinuousMonitoringAsync();
         }
         _activeConfigurations.Add(config);
-        LogContinuousMonitoringStarted(config.Name);
+        _logger.LogInformation("Starting continuous gas sensor monitoring: {configName}", config.Name);
         _monitoringTimer = new Timer(async _ => await MonitorAllSourcesAsync(), null, TimeSpan.Zero, TimeSpan.FromSeconds(config.PollingIntervalSeconds));
         return Task.CompletedTask;
     }
@@ -196,7 +203,7 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
         _monitoringTimer?.Dispose();
         _monitoringTimer = null;
         _activeConfigurations.Clear();
-        LogContinuousMonitoringStopped();
+        _logger.LogInformation("Stopped continuous gas sensor monitoring");
         return Task.CompletedTask;
     }
 
@@ -212,7 +219,7 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
                 }
                 catch (Exception ex)
                 {
-                    LogMonitoringError(ex, config.Name);
+                    _logger.LogError(ex, "Error monitoring source {configName}", config.Name);
                     return Enumerable.Empty<GasSensorReading>();
                 }
             });
@@ -250,8 +257,8 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
         }
         catch (SocketException ex)
         {
-            logger.LogError(ex, "TCP connection failed for {Host}:{Port}", host, port);
-            return [];
+            _logger.LogError(ex, "TCP connection failed for {Host}:{Port}", host, port);
+            return Array.Empty<GasSensorReading>();
         }
     }
 
@@ -268,24 +275,24 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
         }
         catch (SocketException ex)
         {
-            logger.LogError(ex, "UDP communication failed for {Host}:{Port}", host, port);
-            return [];
+            _logger.LogError(ex, "UDP communication failed for {Host}:{Port}", host, port);
+            return Array.Empty<GasSensorReading>();
         }
     }
 
     private async Task<IEnumerable<GasSensorReading>> GetHttpGasDataAsync(string url)
     {
-        var httpClient = httpClientFactory.CreateClient();
+        var client = _httpClient;
         try
         {
-            var response = await httpClient.GetAsync(url);
+            var response = await client.GetAsync(url);
             response.EnsureSuccessStatusCode();
             return ParseJSONGasData(await response.Content.ReadAsStringAsync());
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "HTTP request failed for {Url}", url);
-            return [];
+            _logger.LogError(ex, "HTTP request failed for {Url}", url);
+            return Array.Empty<GasSensorReading>();
         }
     }
 
@@ -305,7 +312,7 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
                 QualityFlag = valueElement.ValueKind == JsonValueKind.Number ? "Good" : "Bad"
             };
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
             // This method can't log directly, but the caller will.
             // Consider a more robust error-handling strategy if needed.
@@ -381,8 +388,8 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
         }
         catch (JsonException ex)
         {
-            LogJsonParsingError(ex, jsonData);
-            return [];
+            _logger.LogError(ex, "Error parsing JSON data: {jsonData}", jsonData);
+            return Array.Empty<GasSensorReading>();
         }
     }
 
@@ -403,8 +410,8 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
         }
         catch (Exception ex)
         {
-            LogXmlParsingError(ex, xmlData);
-            return [];
+            _logger.LogError(ex, "Error parsing XML: {xmlData}", xmlData);
+            return Array.Empty<GasSensorReading>();
         }
     }
 
@@ -448,39 +455,4 @@ public partial class GasSensorService(IHttpClientFactory httpClientFactory, ILog
         _isDisposed = true;
     }
 
-    [LoggerMessage(EventId = 10, Level = LogLevel.Information, Message = "Fetching OSI PI data from {serverUrl}")]
-    private partial void LogFetchingOSIPIData(string serverUrl);
-
-    [LoggerMessage(EventId = 11, Level = LogLevel.Error, Message = "Error fetching OSI PI data for tag {tagName}")]
-    private partial void LogOSIPIDataError(Exception ex, string tagName);
-
-    [LoggerMessage(EventId = 12, Level = LogLevel.Information, Message = "Fetching OPC UA data from {endpointUrl}")]
-    private partial void LogFetchingOPCUAData(string endpointUrl);
-
-    [LoggerMessage(EventId = 13, Level = LogLevel.Information, Message = "Fetching Modbus data: {connectionString}")]
-    private partial void LogFetchingModbusData(string connectionString);
-
-    [LoggerMessage(EventId = 14, Level = LogLevel.Information, Message = "Fetching serial data: {portName} at {baudRate} baud, protocol: {protocol}")]
-    private partial void LogFetchingSerialData(string portName, int baudRate, string protocol);
-
-    [LoggerMessage(EventId = 15, Level = LogLevel.Information, Message = "Fetching network data: {protocol} {host}:{port}")]
-    private partial void LogFetchingNetworkData(NetworkProtocol protocol, string host, int port);
-
-    [LoggerMessage(EventId = 16, Level = LogLevel.Information, Message = "Reading gas data from file: {filePath} (format: {format})")]
-    private partial void LogReadingFileData(string filePath, FileFormat format);
-
-    [LoggerMessage(EventId = 17, Level = LogLevel.Information, Message = "Starting continuous gas sensor monitoring: {configName}")]
-    private partial void LogContinuousMonitoringStarted(string configName);
-
-    [LoggerMessage(EventId = 18, Level = LogLevel.Information, Message = "Stopped continuous gas sensor monitoring")]
-    private partial void LogContinuousMonitoringStopped();
-
-    [LoggerMessage(EventId = 19, Level = LogLevel.Error, Message = "Error monitoring source {configName}")]
-    private partial void LogMonitoringError(Exception ex, string configName);
-
-    [LoggerMessage(EventId = 20, Level = LogLevel.Error, Message = "Error parsing JSON: {jsonData}")]
-    private partial void LogJsonParsingError(JsonException ex, string jsonData);
-
-    [LoggerMessage(EventId = 21, Level = LogLevel.Error, Message = "Error parsing XML: {xmlData}")]
-    private partial void LogXmlParsingError(Exception ex, string xmlData);
 }

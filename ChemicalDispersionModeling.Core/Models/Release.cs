@@ -114,6 +114,11 @@ public class Release
     public double ModelingHumidity { get; set; }
     
     /// <summary>
+    /// Surface roughness length in meters
+    /// </summary>
+    public double SurfaceRoughness { get; set; } = 0.1; // Default for urban area
+    
+    /// <summary>
     /// Status of the release: Draft, Active, Completed, Archived
     /// </summary>
     [MaxLength(20)]

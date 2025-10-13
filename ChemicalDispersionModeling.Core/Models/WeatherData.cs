@@ -88,9 +88,9 @@ public class WeatherData
     public string? StabilityClass { get; set; }
     
     /// <summary>
-    /// Mixing layer height in meters
+    /// Inversion height in meters
     /// </summary>
-    public double? MixingLayerHeight { get; set; }
+    public double? InversionHeight { get; set; }
     
     /// <summary>
     /// Source of weather data (e.g., "NWS", "OpenMeteo", "Local Station")

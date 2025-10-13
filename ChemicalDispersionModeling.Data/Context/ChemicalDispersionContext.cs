@@ -31,8 +31,5 @@ public class ChemicalDispersionContext : DbContext
     {
         configurationBuilder.Properties<double>()
             .HavePrecision(18, 6);
-
-        configurationBuilder.Properties<double>(p => p.Name.Contains("Latitude") || p.Name.Contains("Longitude"))
-            .HavePrecision(10, 7);
     }
 }
