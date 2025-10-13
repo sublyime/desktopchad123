@@ -391,7 +391,24 @@ public partial class MainWindow : Window
             
             _logger?.LogInformation($"Map clicked: {e.Latitude:F6}, {e.Longitude:F6}, weather updated, marker placed");
             
-            // Note: Dispersion modeling will be triggered by the "Run Model" button, not automatically on map click
+            // Draw downwind corridor overlay on map
+            if (_realMappingService != null && _viewModel != null)
+            {
+                var weather = _viewModel.CurrentWeather;
+                double windDir = weather?.WindDirection ?? _viewModel.WindDirection;
+                double windSpeed = weather?.WindSpeed ?? _viewModel.WindSpeed;
+                double temp = weather?.Temperature ?? _viewModel.Temperature;
+                string stability = _viewModel.StabilityClass ?? "D";
+                await _realMappingService.AddDownwindCorridorAsync(
+                    e.Latitude,
+                    e.Longitude,
+                    windDir,
+                    windSpeed,
+                    temp,
+                    stability
+                );
+                _logger?.LogInformation("Downwind corridor overlay drawn on map.");
+            }
         }
         catch (Exception ex)
         {

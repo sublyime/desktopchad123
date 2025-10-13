@@ -8,6 +8,9 @@ namespace ChemicalDispersionModeling.Core.Services;
 public interface IRealMappingService
 {
     /// <summary>
+    /// Add downwind corridor overlay to map
+    /// </summary>
+    Task AddDownwindCorridorAsync(double latitude, double longitude, double windDirectionDeg, double windSpeed, double temperature, string stabilityClass);
     /// Initialize mapping with specified provider
     /// </summary>
     Task<bool> InitializeAsync(MapProvider provider, string apiKey = "");
