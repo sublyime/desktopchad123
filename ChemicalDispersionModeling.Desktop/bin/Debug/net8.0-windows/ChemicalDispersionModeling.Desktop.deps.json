@@ -759,17 +759,17 @@
           "runtimes/win-arm64/native/WebView2Loader.dll": {
             "rid": "win-arm64",
             "assetType": "native",
-            "fileVersion": "1.0.3537.50"
+            "fileVersion": "0.0.0.0"
           },
           "runtimes/win-x64/native/WebView2Loader.dll": {
             "rid": "win-x64",
             "assetType": "native",
-            "fileVersion": "1.0.3537.50"
+            "fileVersion": "0.0.0.0"
           },
           "runtimes/win-x86/native/WebView2Loader.dll": {
             "rid": "win-x86",
             "assetType": "native",
-            "fileVersion": "1.0.3537.50"
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -1049,7 +1049,16 @@
         }
       },
       "System.Diagnostics.DiagnosticSource/8.0.0": {},
-      "System.Diagnostics.EventLog/8.0.0": {},
+      "System.Diagnostics.EventLog/8.0.0": {
+        "runtimeTargets": {
+          "runtimes/win/lib/net8.0/System.Diagnostics.EventLog.Messages.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "8.0.0.0",
+            "fileVersion": "8.0.23.53103"
+          }
+        }
+      },
       "System.IO/4.3.0": {
         "dependencies": {
           "Microsoft.NETCore.Platforms": "1.1.0",
@@ -1178,10 +1187,7 @@
           "System.Reactive": "6.0.0"
         },
         "runtime": {
-          "ChemicalDispersionModeling.Core.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
+          "ChemicalDispersionModeling.Core.dll": {}
         }
       },
       "ChemicalDispersionModeling.Data/1.0.0": {
@@ -1195,10 +1201,7 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": "8.0.0"
         },
         "runtime": {
-          "ChemicalDispersionModeling.Data.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
+          "ChemicalDispersionModeling.Data.dll": {}
         }
       },
       "Microsoft.Web.WebView2.Core/1.0.3537.50": {

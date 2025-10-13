@@ -1,15 +1,19 @@
+using System;
+using System.Collections.Concurrent;
 using ChemicalDispersionModeling.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace ChemicalDispersionModeling.Core.Services.Implementation;
 
 /// <summary>
-/// NOAA ALOHA-compliant Gaussian plume dispersion model implementation
-/// Based on NOAA Technical Memorandum NOS OR&R 43 Section 4.3
+/// Implements the NOAA ALOHA-compliant Gaussian plume dispersion model, which is suitable for neutrally buoyant gas releases.
+/// This model is based on the formulations described in the ALOHA Technical Documentation.
+/// Reference: NOAA Technical Memorandum NOS OR&R 43, Section 4.3.
 /// </summary>
-public class GaussianPlumeModel
+public class GaussianPlumeModel : IDispersionModel
 {
     private readonly ILogger<GaussianPlumeModel> _logger;
+    private static readonly ConcurrentDictionary<string, BriggsCoefficients> _briggsCoefficientsCache = new();
 
     public GaussianPlumeModel(ILogger<GaussianPlumeModel> logger)
     {
@@ -17,238 +21,195 @@ public class GaussianPlumeModel
     }
 
     /// <summary>
-    /// Calculate concentration using ALOHA Gaussian plume model
-    /// Reference: ALOHA Technical Documentation Section 4.3
+    /// Calculates the concentration of a chemical at a specific point downwind from the release source.
+    /// This core calculation is based on the ALOHA Gaussian plume formula.
     /// </summary>
+    /// <param name="x">Downwind distance from the source (meters).</param>
+    /// <param name="y">Crosswind distance from the plume centerline (meters).</param>
+    /// <param name="z">Height above the ground (meters).</param>
+    /// <param name="release">The release event parameters.</param>
+    /// <param name="chemical">The chemical being released.</param>
+    /// <param name="weather">The current weather conditions.</param>
+    /// <returns>The calculated concentration in mg/m³.</returns>
     public double CalculateConcentration(double x, double y, double z, Release release, Chemical chemical, WeatherData weather)
     {
+        // The model is not applicable for upwind, at the source, or in calm conditions.
         if (x <= 0 || weather.WindSpeed <= 0) return 0;
 
-        var stabilityClass = weather.StabilityClass ?? "D";
-        var isUrban = DetermineUrbanRural(0.1); // Default to rural for now
+        var stabilityClass = weather.StabilityClass ?? "D"; // Default to neutral if not specified.
+        var isUrban = DetermineUrbanRural(release.SurfaceRoughness);
         
-        // Get dispersion parameters using Briggs formulations
         var (sigmaY, sigmaZ) = CalculateDispersionParameters(x, stabilityClass, isUrban);
-        var sigmaX = CalculateAlongWindDispersion(x, stabilityClass);
 
-        // Calculate effective release rate
         var Q = CalculateEffectiveReleaseRate(release, chemical, weather);
         
-        // Wind speed at release height
-        var windSpeed = CalculateWindSpeedAtHeight(weather.WindSpeed, release.ReleaseHeight, stabilityClass, 0.03);
+        var windSpeedAtReleaseHeight = CalculateWindSpeedAtHeight(weather.WindSpeed, release.ReleaseHeight, stabilityClass, release.SurfaceRoughness);
 
-        // Calculate Gaussian concentration components
         var lateralTerm = CalculateLateralTerm(y, sigmaY);
-        var verticalTerm = CalculateVerticalTerm(z, release.ReleaseHeight, sigmaZ, 0); // No inversion
+        var verticalTerm = CalculateVerticalTerm(z, release.ReleaseHeight, sigmaZ, weather.InversionHeight);
         
-        // ALOHA Gaussian formula: C = Q / (U * σy * σz * √(2π)) * exp(-y²/2σy²) * [vertical reflection terms]
-        var concentration = (Q / (windSpeed * sigmaY * sigmaZ * Math.Sqrt(2 * Math.PI))) * 
+        // The core Gaussian plume equation.
+        var concentration = (Q / (2 * Math.PI * windSpeedAtReleaseHeight * sigmaY * sigmaZ)) * 
                            lateralTerm * verticalTerm;
 
-        return Math.Max(0, concentration * 1e6); // Convert to mg/m³
+        // Convert from kg/m³ to mg/m³ for typical reporting.
+        return Math.Max(0, concentration * 1e6);
     }
 
     /// <summary>
-    /// Calculate dispersion parameters using Briggs formulations
-    /// Reference: ALOHA Technical Documentation Section 4.3.1, Table 13
+    /// Calculates the lateral (σy) and vertical (σz) dispersion coefficients using Briggs' formulations.
+    /// These coefficients determine the spread of the plume.
+    /// Reference: ALOHA Technical Documentation, Section 4.3.1, Table 13.
     /// </summary>
     public (double SigmaY, double SigmaZ) CalculateDispersionParameters(double x, string stabilityClass, bool isUrban)
     {
-        var xKm = x / 1000.0; // Convert to km for Briggs formulations
+        var xKm = x / 1000.0; // Briggs' formulas use kilometers.
         
-        // Briggs coefficients from ALOHA Table 13
-        var coefficients = GetBriggsCoefficients(stabilityClass, isUrban);
+        var coeffs = GetBriggsCoefficients(stabilityClass, isUrban);
         
-        // Briggs formulations: σy = sy1 * x^(1/(1 + sy2*x))  and  σz = sz1 * x^(1/(1 + sz2*x + sz3*x^2))
-        var sigmaY = coefficients.SY1 * Math.Pow(xKm, 1.0 / (1.0 + coefficients.SY2 * xKm));
-        
-        var denominatorZ = 1.0 + coefficients.SZ2 * xKm + coefficients.SZ3 * xKm * xKm;
-        var sigmaZ = coefficients.SZ1 * Math.Pow(xKm, 1.0 / denominatorZ);
-        
-        // Convert back to meters and apply minimum values
-        sigmaY = Math.Max(1.0, sigmaY * 1000.0);
-        sigmaZ = Math.Max(1.0, sigmaZ * 1000.0);
-        
-        return (sigmaY, sigmaZ);
+        // Pasquill-Gifford-Turner (PGT) curves approximated by Briggs' formulas.
+        double sigmaY = coeffs.A * Math.Pow(xKm, coeffs.B);
+        double sigmaZ = coeffs.C * Math.Pow(xKm, coeffs.D) + coeffs.E;
+
+        // Ensure a minimum dispersion to avoid singularities at the source.
+        return (Math.Max(1.0, sigmaY), Math.Max(1.0, sigmaZ));
     }
 
     /// <summary>
-    /// Calculate along-wind dispersion parameter
-    /// Reference: ALOHA Technical Documentation Section 4.3.1
+    /// Calculates the lateral term of the Gaussian equation, accounting for crosswind distance.
     /// </summary>
-    public double CalculateAlongWindDispersion(double x, string stabilityClass)
+    private static double CalculateLateralTerm(double y, double sigmaY)
     {
-        var coefficients = GetBriggsCoefficients(stabilityClass, false);
-        var xKm = x / 1000.0;
-        
-        // σx = sx1 * x^(sx2) formula from ALOHA
-        var sigmaX = coefficients.SX1 * Math.Pow(xKm, coefficients.SX2);
-        
-        return Math.Max(1.0, sigmaX * 1000.0); // Convert to meters
+        return Math.Exp(-0.5 * (y * y) / (sigmaY * sigmaY));
     }
 
     /// <summary>
-    /// Calculate lateral Gaussian term
+    /// Calculates the vertical term, including reflections from the ground and an optional inversion layer.
+    /// Reference: ALOHA Technical Documentation, Section 4.3.
     /// </summary>
-    private double CalculateLateralTerm(double y, double sigmaY)
+    private static double CalculateVerticalTerm(double z, double releaseHeight, double sigmaZ, double? inversionHeight)
     {
-        return Math.Exp(-0.5 * Math.Pow(y / sigmaY, 2));
-    }
+        // Standard term for reflection off the ground.
+        var directTerm = Math.Exp(-0.5 * Math.Pow((z - releaseHeight) / sigmaZ, 2));
+        var reflectedTerm = Math.Exp(-0.5 * Math.Pow((z + releaseHeight) / sigmaZ, 2));
+        var totalVertical = directTerm + reflectedTerm;
 
-    /// <summary>
-    /// Calculate vertical term with ground reflection
-    /// Reference: ALOHA Technical Documentation Section 4.3
-    /// </summary>
-    private double CalculateVerticalTerm(double z, double releaseHeight, double sigmaZ, double inversionHeight)
-    {
-        if (inversionHeight > 0 && inversionHeight > releaseHeight)
+        // If an inversion layer is present, add reflections from it.
+        if (inversionHeight.HasValue && inversionHeight > 0)
         {
-            // With inversion - use reflection series (simplified to 5 reflections as per ALOHA)
             double sum = 0;
-            for (int n = -5; n <= 5; n++)
+            // Simplified series for trapped reflections (as per ALOHA guidance).
+            for (int n = 1; n <= 4; n++)
             {
-                // Ground reflections
-                var h1 = releaseHeight + 2 * n * inversionHeight;
-                var h2 = -releaseHeight + 2 * n * inversionHeight;
-                
-                sum += Math.Exp(-0.5 * Math.Pow((z - h1) / sigmaZ, 2));
-                sum += Math.Exp(-0.5 * Math.Pow((z - h2) / sigmaZ, 2));
+                var h1 = releaseHeight + 2 * n * inversionHeight.Value;
+                var h2 = -releaseHeight + 2 * n * inversionHeight.Value;
+                sum += Math.Exp(-0.5 * Math.Pow((z - h1) / sigmaZ, 2)) + Math.Exp(-0.5 * Math.Pow((z + h1) / sigmaZ, 2)) +
+                       Math.Exp(-0.5 * Math.Pow((z - h2) / sigmaZ, 2)) + Math.Exp(-0.5 * Math.Pow((z + h2) / sigmaZ, 2));
             }
-            return sum;
+            totalVertical += sum;
         }
-        else
-        {
-            // No inversion - simple ground reflection
-            var directTerm = Math.Exp(-0.5 * Math.Pow((z - releaseHeight) / sigmaZ, 2));
-            var reflectedTerm = Math.Exp(-0.5 * Math.Pow((z + releaseHeight) / sigmaZ, 2));
-            
-            return directTerm + reflectedTerm;
-        }
+
+        return totalVertical;
     }
 
     /// <summary>
-    /// Calculate wind speed at specific height using power law profile
-    /// Reference: ALOHA Technical Documentation Section 4.2.3
+    /// Adjusts wind speed from a reference height (typically 10m) to the effective release height.
+    /// Reference: ALOHA Technical Documentation, Section 4.2.3.
     /// </summary>
-    private double CalculateWindSpeedAtHeight(double windSpeedRef, double height, string stabilityClass, double roughnessLength)
+    private static double CalculateWindSpeedAtHeight(double windSpeedRef, double height, string stabilityClass, double roughnessLength)
     {
-        var refHeight = 10.0; // Reference height (10m)
-        var exponent = GetWindProfileExponent(stabilityClass, roughnessLength);
+        const double refHeight = 10.0; // Standard reference height.
+        var exponent = GetWindProfileExponent(stabilityClass, roughnessLength > 0.1);
         
+        // Avoid calculation issues at or below ground level.
+        if (height <= 0) return windSpeedRef;
+
         return windSpeedRef * Math.Pow(height / refHeight, exponent);
     }
 
     /// <summary>
-    /// Get wind profile exponent based on stability class
-    /// Reference: ALOHA Technical Documentation Section 4.2.3
+    /// Gets the wind profile exponent based on stability class and urban/rural setting.
+    /// Reference: EPA-454/R-99-005, Table 6-3.
     /// </summary>
-    private double GetWindProfileExponent(string stabilityClass, double roughnessLength)
+    private static double GetWindProfileExponent(string stabilityClass, bool isUrban)
     {
-        // Typical values from ALOHA for z0 = 0.15 cm
-        return stabilityClass.ToUpper() switch
+        return (stabilityClass.ToUpperInvariant(), isUrban) switch
         {
-            "A" => 0.109,
-            "B" => 0.112,
-            "C" => 0.120,
-            "D" => 0.142,
-            "E" => 0.203,
-            "F" => 0.253,
-            _ => 0.142 // Default to neutral
+            ("A", true) => 0.15, ("A", false) => 0.07,
+            ("B", true) => 0.15, ("B", false) => 0.07,
+            ("C", true) => 0.20, ("C", false) => 0.10,
+            ("D", true) => 0.25, ("D", false) => 0.15,
+            ("E", true) => 0.30, ("E", false) => 0.35,
+            ("F", true) => 0.30, ("F", false) => 0.55,
+            _ => 0.15 // Default to neutral rural
         };
     }
 
     /// <summary>
-    /// Calculate effective release rate considering physical state and conditions
-    /// Reference: ALOHA Technical Documentation Chapter 3
+    /// Calculates the effective release rate, Q (in kg/s).
     /// </summary>
     private double CalculateEffectiveReleaseRate(Release release, Chemical chemical, WeatherData weather)
     {
         if (release.ReleaseRate.HasValue)
         {
-            return release.ReleaseRate.Value; // kg/s
+            return release.ReleaseRate.Value;
         }
         
-        if (release.TotalMass.HasValue)
+        if (release.TotalMass.HasValue && release.EndTime.HasValue && release.StartTime.HasValue)
         {
-            var duration = (release.EndTime - release.StartTime)?.TotalSeconds ?? 3600; // Default 1 hour
-            return release.TotalMass.Value / duration; // kg/s
+            var duration = (release.EndTime.Value - release.StartTime.Value).TotalSeconds;
+            return duration > 0 ? release.TotalMass.Value / duration : 0;
         }
         
-        // If no mass specified, use a default small release
-        _logger.LogWarning("No release rate or total mass specified, using default 0.1 kg/s");
+        _logger.LogWarning("Release rate or mass not specified. Using default 0.1 kg/s.");
         return 0.1;
     }
 
     /// <summary>
-    /// Determine if location is urban or rural based on roughness length
-    /// Reference: ALOHA Technical Documentation Section 4.3.1
+    /// Determines if the area is urban or rural based on surface roughness.
+    /// ALOHA uses a 20 cm threshold for roughness length.
     /// </summary>
-    private bool DetermineUrbanRural(double roughnessLength)
+    private static bool DetermineUrbanRural(double roughnessLength)
     {
-        // ALOHA uses 20 cm as the threshold
         return roughnessLength >= 0.20;
     }
 
     /// <summary>
-    /// Get Briggs coefficients for dispersion parameter calculations
-    /// Reference: ALOHA Technical Documentation Table 13
+    /// Retrieves the Briggs coefficients for dispersion calculations, using a cache for efficiency.
+    /// Reference: ALOHA Technical Documentation, Table 13.
     /// </summary>
-    private BriggsCoefficients GetBriggsCoefficients(string stabilityClass, bool isUrban)
+    private static BriggsCoefficients GetBriggsCoefficients(string stabilityClass, bool isUrban)
     {
-        return stabilityClass.ToUpper() switch
+        var cacheKey = $"{stabilityClass}_{isUrban}";
+        if (_briggsCoefficientsCache.TryGetValue(cacheKey, out var cachedCoeffs))
         {
-            "A" => new BriggsCoefficients
-            {
-                SX1 = 0.02, SX2 = 1.22,
-                SY1 = 0.22, SY2 = 0.0001,
-                SZ1 = isUrban ? 0.24 : 0.2, SZ2 = 0, SZ3 = 0
-            },
-            "B" => new BriggsCoefficients
-            {
-                SX1 = 0.02, SX2 = 1.22,
-                SY1 = 0.16, SY2 = 0.0001,
-                SZ1 = isUrban ? 0.24 : 0.12, SZ2 = 0, SZ3 = 0
-            },
-            "C" => new BriggsCoefficients
-            {
-                SX1 = 0.02, SX2 = 1.22,
-                SY1 = 0.11, SY2 = 0.0001,
-                SZ1 = isUrban ? 0.20 : 0.08, SZ2 = isUrban ? 0.0003 : 0.0002, SZ3 = isUrban ? 0 : -0.5
-            },
-            "D" => new BriggsCoefficients
-            {
-                SX1 = 0.04, SX2 = 1.14,
-                SY1 = 0.08, SY2 = 0.0001,
-                SZ1 = isUrban ? 0.14 : 0.06, SZ2 = isUrban ? 0.0003 : 0.0015, SZ3 = isUrban ? -0.5 : -0.5
-            },
-            "E" => new BriggsCoefficients
-            {
-                SX1 = 0.17, SX2 = 0.97,
-                SY1 = 0.06, SY2 = 0.0001,
-                SZ1 = isUrban ? 0.08 : 0.03, SZ2 = isUrban ? 0.0015 : 0.0003, SZ3 = isUrban ? -0.5 : -1
-            },
-            "F" => new BriggsCoefficients
-            {
-                SX1 = 0.17, SX2 = 0.97,
-                SY1 = 0.04, SY2 = 0.0001,
-                SZ1 = isUrban ? 0.05 : 0.016, SZ2 = isUrban ? 0.0003 : 0.0003, SZ3 = isUrban ? -1 : -1
-            },
-            _ => new BriggsCoefficients // Default to D (neutral)
-            {
-                SX1 = 0.04, SX2 = 1.14,
-                SY1 = 0.08, SY2 = 0.0001,
-                SZ1 = 0.06, SZ2 = 0.0015, SZ3 = -0.5
-            }
+            return cachedCoeffs;
+        }
+
+        var coeffs = (stabilityClass.ToUpperInvariant(), isUrban) switch
+        {
+            // Format: a, b (for σy), c, d, e (for σz)
+            ("A", true)  => new BriggsCoefficients(213, 0.894, 440.8, 1.941, 9.27),
+            ("A", false) => new BriggsCoefficients(213, 0.894, 459.7, 2.094, -9.6),
+            ("B", true)  => new BriggsCoefficients(156, 0.894, 106.6, 1.149, 3.3),
+            ("B", false) => new BriggsCoefficients(156, 0.894, 108.2, 1.098, 2.0),
+            ("C", true)  => new BriggsCoefficients(104, 0.894, 61.0, 0.9146, 0),
+            ("C", false) => new BriggsCoefficients(104, 0.894, 61.0, 0.9146, 0),
+            ("D", true)  => new BriggsCoefficients(68, 0.894, 33.2, 0.725, -1.7),
+            ("D", false) => new BriggsCoefficients(68, 0.894, 44.5, 0.516, -13.0),
+            ("E", true)  => new BriggsCoefficients(50.5, 0.894, 22.8, 0.618, -1.9),
+            ("E", false) => new BriggsCoefficients(50.5, 0.894, 55.4, 0.310, -34.0),
+            ("F", true)  => new BriggsCoefficients(34, 0.894, 14.35, 0.740, -0.35),
+            ("F", false) => new BriggsCoefficients(34, 0.894, 62.6, 0.180, -48.6),
+            _ => GetBriggsCoefficients("D", isUrban) // Default to Neutral
         };
+        
+        _briggsCoefficientsCache.TryAdd(cacheKey, coeffs);
+        return coeffs;
     }
 
     /// <summary>
-    /// Structure to hold Briggs coefficients
+    /// Record struct to hold the Briggs' coefficients for dispersion parameter calculations.
     /// </summary>
-    private struct BriggsCoefficients
-    {
-        public double SX1, SX2; // Along-wind dispersion coefficients
-        public double SY1, SY2; // Cross-wind dispersion coefficients  
-        public double SZ1, SZ2, SZ3; // Vertical dispersion coefficients
-    }
+    private readonly record struct BriggsCoefficients(double A, double B, double C, double D, double E);
 }

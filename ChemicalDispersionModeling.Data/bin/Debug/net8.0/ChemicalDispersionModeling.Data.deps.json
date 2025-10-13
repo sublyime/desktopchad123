@@ -775,10 +775,7 @@
           "System.Reactive": "6.0.0"
         },
         "runtime": {
-          "ChemicalDispersionModeling.Core.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
+          "ChemicalDispersionModeling.Core.dll": {}
         }
       }
     }
