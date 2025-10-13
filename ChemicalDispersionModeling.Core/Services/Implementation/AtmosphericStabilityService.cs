@@ -1,200 +1,164 @@
+using System;
 using ChemicalDispersionModeling.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace ChemicalDispersionModeling.Core.Services.Implementation;
 
 /// <summary>
-/// NOAA ALOHA-compliant atmospheric stability classification service
-/// Based on NOAA Technical Memorandum NOS OR&R 43 Section 4.2
+/// Provides methods for determining atmospheric stability based on the Pasquill-Gifford-Turner classification system,
+/// as implemented in NOAA's ALOHA model.
+/// Reference: NOAA Technical Memorandum NOS OR&R 43, Section 4.2.
 /// </summary>
-public class AtmosphericStabilityService
+public class AtmosphericStabilityService(ILogger<AtmosphericStabilityService> logger)
 {
-    private readonly ILogger<AtmosphericStabilityService> _logger;
-
-    public AtmosphericStabilityService(ILogger<AtmosphericStabilityService> logger)
-    {
-        _logger = logger;
-    }
+    private const double DegreesToRadians = Math.PI / 180.0;
+    private const double AirMolecularWeight = 28.97; // g/mol
+    private const double SpecificGasConstantDryAir = 287.0; // J/kg·K
 
     /// <summary>
-    /// Determine Pasquill-Gifford-Turner stability class using manual data entry method
-    /// Reference: ALOHA Technical Documentation Section 4.2.1, Table 10
+    /// Determines the Pasquill-Gifford-Turner stability class.
+    /// Reference: ALOHA Technical Documentation, Section 4.2.1, Table 10.
     /// </summary>
-    public string DetermineStabilityClass(double windSpeed, double cloudCover, bool isDaytime, 
-        double? solarInsolation = null, bool overWater = false)
+    /// <param name="windSpeed">Wind speed in meters/second.</param>
+    /// <param name="cloudCover">Cloud cover in percentage (0-100).</param>
+    /// <param name="isDaytime">True if it is currently daytime.</param>
+    /// <param name="solarInsolation">Optional solar insolation in W/m². If not provided, it's inferred.</param>
+    /// <param name="overWater">True if the location is over a body of water.</param>
+    /// <returns>A stability class from "A" to "F".</returns>
+    public string DetermineStabilityClass(double windSpeed, double cloudCover, bool isDaytime, double? solarInsolation = null, bool overWater = false)
     {
-        // For plumes over water, assume stable conditions regardless of other factors
         if (overWater)
         {
-            return "E"; // Stable conditions over water
+            // Over water, the temperature change is slow, often leading to stable conditions.
+            // ALOHA defaults to D, but E is also a common recommendation for open water.
+            logger.LogDebug("Over water, assuming neutral to stable conditions. Class D/E.");
+            return windSpeed < 5 ? "E" : "D";
         }
 
-        // Completely overcast conditions (>50% cloud cover) = D regardless of time
-        if (cloudCover > 50)
-        {
-            return "D";
-        }
-
-        if (isDaytime)
-        {
-            return DetermineDaytimeStability(windSpeed, solarInsolation ?? 0);
-        }
-        else
-        {
-            return DetermineNighttimeStability(windSpeed, cloudCover);
-        }
+        return isDaytime 
+            ? DetermineDaytimeStability(windSpeed, solarInsolation ?? 0) 
+            : DetermineNighttimeStability(windSpeed, cloudCover);
     }
 
     /// <summary>
-    /// Calculate solar insolation based on ALOHA formula
-    /// Reference: ALOHA Technical Documentation Section 4.2.1
+    /// Calculates solar insolation based on the formula used in ALOHA.
+    /// Reference: ALOHA Technical Documentation, Section 4.2.1.
     /// </summary>
-    public double CalculateSolarInsolation(double latitude, double longitude, DateTime dateTime, double cloudCover)
+    /// <param name="latitude">The latitude of the location.</param>
+    /// <param name="dateTime">The current date and time.</param>
+    /// <param name="cloudCover">The percentage of cloud cover.</param>
+    /// <returns>The calculated solar insolation in W/m².</returns>
+    public double CalculateSolarInsolation(double latitude, DateTime dateTime, double cloudCover)
     {
-        var solarAltitude = CalculateSolarAltitude(latitude, longitude, dateTime);
+        var solarAltitude = CalculateSolarAltitude(latitude, dateTime);
         
-        if (solarAltitude <= 0.1)
+        if (solarAltitude <= 0.1) // Sun is at or below the horizon
         {
-            return 0; // Night time or very low sun
+            return 0;
         }
 
-        // ALOHA formula for solar insolation
-        var cloudinessFactor = 1.0 - 0.71 * (cloudCover / 10.0);
-        var insolation = 1100 * Math.Sin(solarAltitude * Math.PI / 180.0) * cloudinessFactor;
+        // Cloudiness factor reduces insolation. 0.71 is an empirically derived coefficient.
+        var cloudinessFactor = 1.0 - 0.71 * (cloudCover / 100.0); 
+        var insolation = 1100 * Math.Sin(solarAltitude * DegreesToRadians) * cloudinessFactor;
         
         return Math.Max(0, insolation);
     }
 
     /// <summary>
-    /// Calculate solar altitude angle
-    /// Reference: ALOHA Technical Documentation Section 4.2.1
+    /// Calculates the solar altitude angle.
+    /// Reference: ALOHA Technical Documentation, Section 4.2.1.
     /// </summary>
-    private double CalculateSolarAltitude(double latitude, double longitude, DateTime dateTime)
+    private static double CalculateSolarAltitude(double latitude, DateTime dateTime)
     {
-        var latRad = latitude * Math.PI / 180.0;
+        var latRad = latitude * DegreesToRadians;
         var julianDay = dateTime.DayOfYear;
         
-        // Solar declination
-        var declination = 23.45 * Math.Sin((360.0 * (284 + julianDay) / 365.0) * Math.PI / 180.0) * Math.PI / 180.0;
+        // Solar declination angle calculation
+        var declination = 23.45 * Math.Sin(360.0 * (284.0 + julianDay) / 365.0 * DegreesToRadians) * DegreesToRadians;
         
-        // Hour angle
-        var hourAngle = 15.0 * (dateTime.Hour + dateTime.Minute / 60.0 - 12.0) * Math.PI / 180.0;
+        // Hour angle calculation
+        var hourAngle = 15.0 * (dateTime.Hour + dateTime.Minute / 60.0 - 12.0) * DegreesToRadians;
         
-        // Solar altitude
+        // Formula for sine of solar altitude
         var sinAltitude = Math.Sin(latRad) * Math.Sin(declination) + 
                          Math.Cos(latRad) * Math.Cos(declination) * Math.Cos(hourAngle);
         
-        return Math.Asin(sinAltitude) * 180.0 / Math.PI;
+        // Return angle in degrees
+        return Math.Asin(sinAltitude) / DegreesToRadians;
     }
 
     /// <summary>
-    /// Determine daytime stability based on wind speed and solar insolation
-    /// Reference: ALOHA Technical Documentation Table 10
+    /// Determines daytime stability based on wind speed and solar insolation.
+    /// Reference: ALOHA Technical Documentation, Table 10.
     /// </summary>
-    private string DetermineDaytimeStability(double windSpeed, double solarInsolation)
+    private static string DetermineDaytimeStability(double windSpeed, double solarInsolation)
     {
-        string insolationLevel;
+        // Strong insolation: > 850 W/m²
+        // Moderate insolation: > 525 W/m²
+        // Slight insolation: > 175 W/m²
+
+        if (windSpeed < 2)
+        {
+            if (solarInsolation > 525) return "A"; // A or A-B -> A
+            if (solarInsolation > 175) return "B";
+            return "D"; // Neutral/Overcast
+        }
+        if (windSpeed < 3)
+        {
+            if (solarInsolation > 850) return "A"; // A-B -> A
+            if (solarInsolation > 525) return "B";
+            if (solarInsolation > 175) return "C";
+            return "D";
+        }
+        if (windSpeed < 5)
+        {
+            if (solarInsolation > 850) return "B";
+            if (solarInsolation > 525) return "B"; // B-C -> B
+            if (solarInsolation > 175) return "C";
+            return "D";
+        }
+        if (windSpeed < 6)
+        {
+            if (solarInsolation > 850) return "C";
+            if (solarInsolation > 525) return "C"; // C-D -> C
+            return "D";
+        }
+
+        // windSpeed >= 6
+        if (solarInsolation > 850) return "C";
+        return "D";
+    }
+
+    /// <summary>
+    /// Determines nighttime stability based on wind speed and cloud cover.
+    /// Reference: ALOHA Technical Documentation, Table 10.
+    /// </summary>
+    private static string DetermineNighttimeStability(double windSpeed, double cloudCover)
+    {
+        bool isCloudy = cloudCover > 50;
+
+        if (windSpeed < 3)
+        {
+            return isCloudy ? "E" : "F"; // For light winds, cloud cover is the deciding factor.
+        }
+        if (windSpeed < 5)
+        {
+            return isCloudy ? "D" : "E"; 
+        }
         
-        // Classify insolation level according to ALOHA documentation
-        if (solarInsolation > 851)
-            insolationLevel = "Strong";
-        else if (solarInsolation > 526)
-            insolationLevel = "Moderate";
-        else if (solarInsolation > 176)
-            insolationLevel = "Slight";
-        else
-            insolationLevel = "None";
-
-        // Apply ALOHA Table 10 logic
-        if (windSpeed < 2)
-        {
-            return insolationLevel switch
-            {
-                "Strong" => "A",
-                "Moderate" => "A", // A-B, selecting most stable
-                "Slight" => "B",
-                _ => "D"
-            };
-        }
-        else if (windSpeed < 3)
-        {
-            return insolationLevel switch
-            {
-                "Strong" => "A", // A-B, selecting most stable  
-                "Moderate" => "B",
-                "Slight" => "C",
-                _ => "D"
-            };
-        }
-        else if (windSpeed < 5)
-        {
-            return insolationLevel switch
-            {
-                "Strong" => "B",
-                "Moderate" => "B", // B-C, selecting most stable
-                "Slight" => "C",
-                _ => "D"
-            };
-        }
-        else if (windSpeed < 6)
-        {
-            return insolationLevel switch
-            {
-                "Strong" => "C",
-                "Moderate" => "C", // C-D, selecting most stable
-                "Slight" => "D",
-                _ => "D"
-            };
-        }
-        else // windSpeed >= 6
-        {
-            return insolationLevel switch
-            {
-                "Strong" => "C",
-                "Moderate" => "D",
-                "Slight" => "D",
-                _ => "D"
-            };
-        }
+        // For stronger winds (>= 5 m/s), conditions tend towards neutral regardless of cloud cover.
+        return "D";
     }
 
     /// <summary>
-    /// Determine nighttime stability based on wind speed and cloud cover
-    /// Reference: ALOHA Technical Documentation Table 10
+    /// Gets a human-readable description for a given stability class.
     /// </summary>
-    private string DetermineNighttimeStability(double windSpeed, double cloudCover)
+    public static string GetStabilityClassDescription(string stabilityClass)
     {
-        if (windSpeed < 2)
-        {
-            return cloudCover > 50 ? "E" : "F";
-        }
-        else if (windSpeed < 3)
-        {
-            return cloudCover > 50 ? "E" : "F";
-        }
-        else if (windSpeed < 5)
-        {
-            return cloudCover > 50 ? "D" : "E";
-        }
-        else if (windSpeed < 6)
-        {
-            return "D";
-        }
-        else // windSpeed >= 6
-        {
-            return "D";
-        }
-    }
-
-    /// <summary>
-    /// Get stability class description for display purposes
-    /// </summary>
-    public string GetStabilityClassDescription(string stabilityClass)
-    {
-        return stabilityClass?.ToUpper() switch
+        return stabilityClass?.ToUpperInvariant() switch
         {
             "A" => "Extremely Unstable",
-            "B" => "Moderately Unstable", 
+            "B" => "Moderately Unstable",
             "C" => "Slightly Unstable",
             "D" => "Neutral",
             "E" => "Slightly Stable",
@@ -204,38 +168,34 @@ public class AtmosphericStabilityService
     }
 
     /// <summary>
-    /// Determine if conditions favor heavy gas behavior
-    /// Reference: ALOHA Technical Documentation Section 4.4.1
+    /// Determines if a heavy gas model should be used based on relative density.
+    /// Reference: ALOHA Technical Documentation, Section 4.4.1.
     /// </summary>
     public bool ShouldUseHeavyGasModel(Chemical chemical, WeatherData weather, Release release)
     {
-        // Calculate bulk density of release
-        var airDensity = CalculateAirDensity(weather.Temperature, weather.Pressure);
-        var chemicalDensity = chemical.Density;
-        
-        // For gas releases, consider molecular weight effect
+        // For gas releases, compare molecular weight to air.
         if (release.Scenario == "Gas")
         {
-            var airMolWeight = 28.97; // g/mol for air
-            var densityRatio = chemical.MolecularWeight / airMolWeight;
-            
-            // If chemical is significantly denser than air, consider heavy gas model
-            return densityRatio > 1.2;
+            // A common heuristic is a density ratio > 1.2
+            return (chemical.MolecularWeight / AirMolecularWeight) > 1.2;
         }
         
-        // For other scenarios, consider if aerosol/vapor mixture will be dense
-        return chemicalDensity > airDensity * 1.1;
+        // For liquid or other scenarios, compare the chemical's density to air density.
+        var airDensity = CalculateAirDensity(weather.Temperature, weather.Pressure);
+        return chemical.Density > airDensity * 1.1; // 10% denser is a common threshold
     }
 
     /// <summary>
-    /// Calculate air density based on temperature and pressure
+    /// Calculates air density using the ideal gas law.
     /// </summary>
-    private double CalculateAirDensity(double temperatureC, double pressureMb)
-    {
+    /// <param name="temperatureC">Temperature in Celsius.</param>
+    /// <param name="pressureMb">Pressure in millibars.</param>
+    /// <returns>Air density in kg/m³.</returns>
+    private static double CalculateAirDensity(double temperatureC, double pressureMb)
+    { 
         var temperatureK = temperatureC + 273.15;
-        var pressurePa = pressureMb * 100; // Convert mb to Pa
-        var R = 287.0; // Specific gas constant for dry air (J/kg·K)
+        var pressurePa = pressureMb * 100; // Convert millibars to Pascals
         
-        return pressurePa / (R * temperatureK); // kg/m³
+        return pressurePa / (SpecificGasConstantDryAir * temperatureK);
     }
 }
