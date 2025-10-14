@@ -130,5 +130,10 @@ public partial class App : Application
 
         // Windows
         services.AddTransient<MainWindow>();
+
+        // Register GaussianPlumeModel, HeavyGasModel, and AtmosphericStabilityService as scoped services
+        services.AddScoped<GaussianPlumeModel>(sp => new GaussianPlumeModel(sp.GetRequiredService<ILogger<GaussianPlumeModel>>()));
+        services.AddScoped<HeavyGasModel>(sp => new HeavyGasModel(sp.GetRequiredService<ILogger<HeavyGasModel>>()));
+        services.AddScoped<AtmosphericStabilityService>(sp => new AtmosphericStabilityService(sp.GetRequiredService<ILogger<AtmosphericStabilityService>>()));
     }
 }
